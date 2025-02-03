@@ -6,4 +6,13 @@
 #SBATCH --error=logs/%x-%j.err
 
 # YOUR SCRIPT GOES HERE
-python preprocessing.py --docs_dir=./documents --db_dir=./db --cache_dir=./cache
+echo $SHELL
+source ~/miniconda3/etc/profile.d/conda.sh 
+conda activate base
+conda info --envs
+
+export PATH="/home/n0/gihwan/miniconda3/bin:$PATH"  # commented out by conda initialize
+
+which torchrun
+
+torchrun --nproc_per_node 1 preprocessing.py --docs_dir=./documents --db_dir=./db --cache_dir=./cache

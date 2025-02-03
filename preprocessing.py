@@ -33,13 +33,18 @@ class DocumentPreprocessor():
     self.chunk_size = chunk_size
     self.vectordb = get_chroma_client(db_dir)
     model_name = "meta-llama/Llama-2-7b-hf"
+    print("Load model")
     self.tokenizer = AutoTokenizer.from_pretrained(model_name)
     self.model = LlamaForCausalLM.from_pretrained(model_name)
+    print("Model loaded")
 
   def process_documents(self):
     for filename in os.listdir(self.docs_dir):
+      print("Document split")
       chunks = self.split_document(filename)
+      print("Save to vectordb")
       self.save_to_vectordb(chunks)
+      print("Save to kv cache")
       self.save_kv_cache(chunks)
       break
 
@@ -52,7 +57,7 @@ class DocumentPreprocessor():
       tokens = self.tokenizer.encode(text, add_special_tokens=False)
       chunks = [
         DocumentChunk(
-          id=f"filename-{i}",
+          id=f"{filename}-{i}",
           text=self.tokenizer.decode(
             tokens[i:i+self.chunk_size], skip_special_tokens=True
           )
@@ -91,7 +96,7 @@ def main(
     )
 
     preprocessor.process_documents()
-    preprocessor.test_vectordb()
+    preprocessor.test_vectordb("Hello")
 
 
 
