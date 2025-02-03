@@ -1,8 +1,9 @@
 import fire
 import os
 import chromadb
+import torch
 from typing import List
-from transformers import LlamaTokenizer, LlamaForCausalLM
+from transformers import LlamaForCausalLM, AutoTokenizer
 
 
 def get_chroma_client(dir: str):
@@ -14,17 +15,14 @@ class DocumentChunk():
     self,
     id: str,
     text: str, 
-    tokens,
   ):
     self.id = id
     self.text = text
-    self.tokens = tokens
 
 
 class DocumentPreprocessor():
   def __init__(
       self, 
-      ckpt_dir: str,
       docs_dir: str,
       db_dir: str, 
       cache_dir: str,
@@ -35,13 +33,15 @@ class DocumentPreprocessor():
     self.chunk_size = chunk_size
     self.vectordb = get_chroma_client(db_dir)
     model_name = "meta-llama/Llama-2-7b-hf"
-    self.tokenizer = LlamaTokenizer.from_pretrained(model_name)
+    self.tokenizer = AutoTokenizer.from_pretrained(model_name)
     self.model = LlamaForCausalLM.from_pretrained(model_name)
 
   def process_documents(self):
     for filename in os.listdir(self.docs_dir):
       chunks = self.split_document(filename)
       self.save_to_vectordb(chunks)
+      self.save_kv_cache(chunks)
+      break
 
   def split_document(
       self,
@@ -53,7 +53,6 @@ class DocumentPreprocessor():
       chunks = [
         DocumentChunk(
           id=f"filename-{i}",
-          tokens=tokens[i:i+self.chunk_size],
           text=self.tokenizer.decode(
             tokens[i:i+self.chunk_size], skip_special_tokens=True
           )
@@ -68,17 +67,23 @@ class DocumentPreprocessor():
     )
 
   def save_kv_cache(self, chunks: List[DocumentChunk]):
-    outputs = 
+    for chunk in chunks:
+      input = self.tokenizer(chunk.text, return_tensors="pt")
+      with torch.no_grad():
+        output = self.model(**input, use_cache = True)
+      print(output.past_key_values)
+  
+  def test_vectordb(self, input: str):
+    outputs = self.vectordb.query(query_texts=[input])
+    print(outputs)
 
 def main(
-    ckpt_dir: str,
     docs_dir: str,
     db_dir: str, 
     cache_dir: str,
     chunk_size: int = 512,
 ):
     preprocessor = DocumentPreprocessor(
-      ckpt_dir=ckpt_dir,
       docs_dir=docs_dir,
       db_dir=db_dir,
       cache_dir=cache_dir,
@@ -86,6 +91,7 @@ def main(
     )
 
     preprocessor.process_documents()
+    preprocessor.test_vectordb()
 
 
 
