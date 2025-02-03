@@ -45,13 +45,9 @@ class DocumentPreprocessor():
 
   def process_documents(self):
     for filename in os.listdir(self.docs_dir):
-      print("Document split")
       chunks = self.split_document(filename)
-      print("Save to vectordb")
       self.save_to_vectordb(chunks)
-      print("Save to kv cache")
       self.save_kv_cache(chunks)
-      break
 
   def split_document(
       self,
