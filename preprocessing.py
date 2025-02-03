@@ -3,7 +3,7 @@ import os
 import chromadb
 import torch
 from typing import List
-from transformers import LlamaForCausalLM, AutoTokenizer
+from transformers import LlamaForCausalLM, AutoTokenizer, DynamicCache, AutoModelForCausalLM
 
 
 def get_chroma_client(dir: str):
@@ -35,7 +35,12 @@ class DocumentPreprocessor():
     model_name = "meta-llama/Llama-2-7b-hf"
     print("Load model")
     self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-    self.model = LlamaForCausalLM.from_pretrained(model_name)
+    self.model = AutoModelForCausalLM.from_pretrained(
+      model_name, 
+      torch_dtype=torch.float16,
+      device_map="auto",
+      use_flash_attention_2=True,
+    )
     print("Model loaded")
 
   def process_documents(self):
@@ -73,10 +78,16 @@ class DocumentPreprocessor():
 
   def save_kv_cache(self, chunks: List[DocumentChunk]):
     for chunk in chunks:
-      input = self.tokenizer(chunk.text, return_tensors="pt")
+      input = self.tokenizer(chunk.text, return_tensors="pt").to("cuda")
       with torch.no_grad():
         output = self.model(**input, use_cache = True)
-      print(output.past_key_values)
+      cache = output.past_key_values.to_legacy_cache()
+      torch.save(cache, os.path.join(self.cache_dir, f"{chunk.id}.pt"))
+      '''
+        cache = torch.load(os.path.join(self.cache_dir, f"{chunk.id}.pt"))
+        past_kv_cache = DynamicCache.from_legacy_cache(loaded)
+        self.model(**input, use_cache = True, past_kv_cache = past_kv_cache)
+      '''
   
   def test_vectordb(self, input: str):
     outputs = self.vectordb.query(query_texts=[input])
