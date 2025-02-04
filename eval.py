@@ -26,14 +26,13 @@ class DocumentPreprocessor():
       docs_dir: str,
       db_dir: str, 
       cache_dir: str,
-      model_name: str = "meta-llama/Llama-3.1-8B", 
       chunk_size: int = 512,
   ):
     self.docs_dir = docs_dir
     self.cache_dir = cache_dir
     self.chunk_size = chunk_size
     self.vectordb = get_chroma_client(db_dir)
-    #model_name = "meta-llama/Llama-2-7b-hf"
+    model_name = "meta-llama/Llama-2-7b-hf"
     print("Load model")
     self.tokenizer = AutoTokenizer.from_pretrained(model_name)
     self.model = AutoModelForCausalLM.from_pretrained(
@@ -49,7 +48,6 @@ class DocumentPreprocessor():
       chunks = self.split_document(filename)
       self.save_to_vectordb(chunks)
       self.save_kv_cache(chunks)
-      break
 
   def split_document(
       self,
@@ -95,15 +93,13 @@ def main(
     docs_dir: str,
     db_dir: str, 
     cache_dir: str,
-    model_name: str,
     chunk_size: int = 512,
 ):
     preprocessor = DocumentPreprocessor(
       docs_dir=docs_dir,
       db_dir=db_dir,
       cache_dir=cache_dir,
-      chunk_size=chunk_size,
-      model_name=model_name
+      chunk_size=chunk_size
     )
 
     preprocessor.process_documents()
