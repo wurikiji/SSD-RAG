@@ -1,7 +1,9 @@
 import fire
+import time
 import os
 import chromadb
 import torch
+import json
 from typing import List
 from transformers import LlamaForCausalLM, AutoTokenizer, DynamicCache, AutoModelForCausalLM
 
@@ -10,29 +12,32 @@ def get_chroma_client(dir: str):
   chroma_client = chromadb.PersistentClient(path = dir)
   return chroma_client.get_or_create_collection(name = "doc_collection")
 
-class DocumentChunk():
-  def __init__(
-    self,
-    id: str,
-    text: str, 
-  ):
+class Document:
+  def __init__(self, id: str, text: str):
     self.id = id
     self.text = text
 
 
-class DocumentPreprocessor():
+def parse_json_query(json: str):
+    parsed = json.loads(json)
+    query = parsed['query']
+    return query
+
+class QueryProcessor():
   def __init__(
       self, 
-      docs_dir: str,
+      query_file: str,
       db_dir: str, 
       cache_dir: str,
-      chunk_size: int = 512,
+      top_k: int = 4,
+      model_name: str = "meta-llama/Llama-3.1-8B", 
+      use_past_cache: bool = True,
   ):
-    self.docs_dir = docs_dir
+    self.query_file = query_file
     self.cache_dir = cache_dir
-    self.chunk_size = chunk_size
+    self.top_k = top_k
+    self.use_past_cache = use_past_cache
     self.vectordb = get_chroma_client(db_dir)
-    model_name = "meta-llama/Llama-2-7b-hf"
     print("Load model")
     self.tokenizer = AutoTokenizer.from_pretrained(model_name)
     self.model = AutoModelForCausalLM.from_pretrained(
@@ -43,67 +48,106 @@ class DocumentPreprocessor():
     )
     print("Model loaded")
 
-  def process_documents(self):
-    for filename in os.listdir(self.docs_dir):
-      chunks = self.split_document(filename)
-      self.save_to_vectordb(chunks)
-      self.save_kv_cache(chunks)
+  def process_query(self):
+    with open(self.query_file) as f:
+      lines = f.readlines()
+      for line in lines:
+          query = parse_json_query(line)
+          top_k_docs = self.find_top_k_docs(query)
 
-  def split_document(
-      self,
-      filename: str, 
-  ):
-    with open(os.path.join(self.docs_dir, filename)) as f:
-      text = f.read()
-      tokens = self.tokenizer.encode(text, add_special_tokens=False)
-      chunks = [
-        DocumentChunk(
-          id=f"{filename}-{i}",
-          text=self.tokenizer.decode(
-            tokens[i:i+self.chunk_size], skip_special_tokens=True
-          )
-        ) for i in range(0, len(tokens), self.chunk_size)
-      ]
-      return chunks
+          start = time.perf_counter()
+          if self.use_past_cache:
+            caches = self.load_all_caches(top_k_docs)
+            concatenated = self.concat_caches(caches)
+            self.generate_first_token(concatenated)
+          else:
+            self.generate_first_token()
+          
+          end = time.perf_counter()
 
-  def save_to_vectordb(self, chunks: List[DocumentChunk]):
-    self.vectordb.upsert(
-      documents=[chunk.text for chunk in chunks],
-      ids=[chunk.id for chunk in chunks]
-    )
-
-  def save_kv_cache(self, chunks: List[DocumentChunk]):
-    for chunk in chunks:
-      input = self.tokenizer(chunk.text, return_tensors="pt").to("cuda")
-      with torch.no_grad():
-        output = self.model(**input, use_cache = True)
-      cache = output.past_key_values.to_legacy_cache()
-      torch.save(cache, os.path.join(self.cache_dir, f"{chunk.id}.pt"))
-      '''
-        cache = torch.load(os.path.join(self.cache_dir, f"{chunk.id}.pt"))
-        past_kv_cache = DynamicCache.from_legacy_cache(loaded)
-        self.model(**input, use_cache = True, past_kv_cache = past_kv_cache)
-      '''
+          print(f"{end - start} seconds")
+          
+          break
+          
   
-  def test_vectordb(self, input: str):
-    outputs = self.vectordb.query(query_texts=[input])
-    print(outputs)
+  def find_top_k_docs(self, query: str):
+    '''
+    select top k documents from the vector db
+    '''
+    outputs = self.vectordb.query(query_texts=[query], n_results=self.top_k)
+    ids = outputs['ids'][0]
+    documents = outputs["documents"][0]
+
+    docs: List[Document] = []
+    for id, text in zip(ids, documents):
+      docs.append(Document(id, text))
+    
+    return docs
+  
+  def load_all_caches(self, docs: List[Document]):
+    '''
+    load past kv cache from the disk for all documents
+    '''
+    caches = []
+    for doc in docs:
+      caches.append(self.load_kv_cache(doc.id))
+    
+    return caches
+
+  def load_kv_cache(self, doc_id: str):
+    '''
+    load past kv cache from the disk
+    '''
+    cache_file = os.path.join(self.cache_dir, f"{doc_id}.pt")
+    cache = torch.load(cache_file)
+    return cache
+  
+  def concat_caches(self, caches):
+    '''
+    concatenate the cache 
+    '''
+    num_layers = len(caches[0])
+    concatenated = []
+    for layer in range(num_layers):
+      keys = torch.cat([cache[layer][0] for cache in caches])
+      values = torch.cat([cache[layer][1] for cache in caches])
+      concatenated.append((keys, values))
+    return concatenated
+  
+  def generate_first_token(
+      self, 
+      input: str,
+      cache = None,
+  ):
+    if cache is not None:
+      past_kv_cache = DynamicCache.from_legacy_cache(cache)
+    else:
+      past_kv_cache = DynamicCache()
+    token = self.tokenizer(input, return_tensors="pt").to("cuda")
+    with torch.no_grad():
+      self.model.generate(
+        **token, 
+        use_cache=True, 
+        past_key_values = past_kv_cache,
+        max_new_tokens = 1,
+      )
 
 def main(
-    docs_dir: str,
+    query_file: str,
     db_dir: str, 
     cache_dir: str,
-    chunk_size: int = 512,
+    top_k: int = 4, 
+    use_past_cache: bool = True,
 ):
-    preprocessor = DocumentPreprocessor(
-      docs_dir=docs_dir,
+    processor = QueryProcessor(
+      query_file=query_file,
       db_dir=db_dir,
       cache_dir=cache_dir,
-      chunk_size=chunk_size
+      top_k=top_k,
+      use_past_cache=use_past_cache,
     )
 
-    preprocessor.process_documents()
-    preprocessor.test_vectordb("Hello")
+    processor.process_query()
 
 
 
