@@ -96,7 +96,7 @@ class QueryProcessor():
   def concatenate_query_and_doc(self, docs: List[Document], query: str):
     input =""
     for doc in docs:
-      input += f"{doc.text}\n"
+      input += doc.text
     
     input += query
     return input
@@ -126,6 +126,7 @@ class QueryProcessor():
     '''
     concatenate the cache 
     '''
+    print(f"Concat {len(caches)} caches")
     num_layers = len(caches[0])
     print(f"Num hidden layers: {num_layers}")
     concatenated = []

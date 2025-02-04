@@ -94,7 +94,7 @@ def main(
     docs_dir: str,
     db_dir: str, 
     cache_dir: str,
-    model_name: str,
+    model_name: str = "meta-llama/Llama-3.1-8B", 
     chunk_size: int = 512,
 ):
     preprocessor = DocumentPreprocessor(
