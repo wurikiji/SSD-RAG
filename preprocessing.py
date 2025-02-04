@@ -49,7 +49,6 @@ class DocumentPreprocessor():
       chunks = self.split_document(filename)
       self.save_to_vectordb(chunks)
       self.save_kv_cache(chunks)
-      break
 
   def split_document(
       self,

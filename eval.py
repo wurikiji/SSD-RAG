@@ -18,8 +18,8 @@ class Document:
     self.text = text
 
 
-def parse_json_query(json: str):
-    parsed = json.loads(json)
+def parse_json_query(json_query: str):
+    parsed = json.loads(json_query)
     query = parsed['query']
     return query
 
@@ -55,13 +55,21 @@ class QueryProcessor():
           query = parse_json_query(line)
           top_k_docs = self.find_top_k_docs(query)
 
+          input = self.concatenate_query_and_doc(top_k_docs, query)
+
           start = time.perf_counter()
           if self.use_past_cache:
+            cache_load_start = time.perf_counter()
             caches = self.load_all_caches(top_k_docs)
             concatenated = self.concat_caches(caches)
-            self.generate_first_token(concatenated)
+            cache_load_end = time.perf_counter()
+            print(f"{cache_load_end - cache_load_start} seconds")
+            self.generate_first_token(
+              input, 
+              cache = concatenated
+            )
           else:
-            self.generate_first_token()
+            self.generate_first_token(input)
           
           end = time.perf_counter()
 
@@ -74,6 +82,7 @@ class QueryProcessor():
     '''
     select top k documents from the vector db
     '''
+    print(f"Find top {self.top_k}")
     outputs = self.vectordb.query(query_texts=[query], n_results=self.top_k)
     ids = outputs['ids'][0]
     documents = outputs["documents"][0]
@@ -84,10 +93,21 @@ class QueryProcessor():
     
     return docs
   
+  def concatenate_query_and_doc(self, docs: List[Document], query: str):
+    input =""
+    for doc in docs:
+      input += f"{doc.text}\n"
+    
+    input += query
+    return input
+
+
+  
   def load_all_caches(self, docs: List[Document]):
     '''
     load past kv cache from the disk for all documents
     '''
+    print("Load all caches")
     caches = []
     for doc in docs:
       caches.append(self.load_kv_cache(doc.id))
@@ -107,10 +127,11 @@ class QueryProcessor():
     concatenate the cache 
     '''
     num_layers = len(caches[0])
+    print(f"Num hidden layers: {num_layers}")
     concatenated = []
     for layer in range(num_layers):
-      keys = torch.cat([cache[layer][0] for cache in caches])
-      values = torch.cat([cache[layer][1] for cache in caches])
+      keys = torch.cat([cache[layer][0] for cache in caches], dim=2)
+      values = torch.cat([cache[layer][1] for cache in caches], dim=2)
       concatenated.append((keys, values))
     return concatenated
   
@@ -119,6 +140,7 @@ class QueryProcessor():
       input: str,
       cache = None,
   ):
+    print("Generate first token")
     if cache is not None:
       past_kv_cache = DynamicCache.from_legacy_cache(cache)
     else:
