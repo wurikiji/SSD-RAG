@@ -63,7 +63,11 @@ class QueryProcessor():
           start = time.perf_counter()
           if self.use_past_cache:
             cache_load_start = time.perf_counter()
+            cache_read_start = time.perf_counter()
             caches = self.load_all_caches(top_k_docs)
+            cache_read_end = time.perf_counter()
+            cache_read_interval = cache_read_end - cache_read_start
+            print(f"cache read {cache_read_interval} seconds")
             concatenated = self.concat_caches(caches)
             cache_load_end = time.perf_counter()
             cache_interval = cache_load_end - cache_load_start
@@ -135,7 +139,6 @@ class QueryProcessor():
       return None
     print(f"Concat {len(caches)} caches")
     num_layers = len(caches[0])
-    print(f"Num hidden layers: {num_layers}")
     concatenated = []
     for layer in range(num_layers):
       keys = torch.cat([cache[layer][0] for cache in caches], dim=2)
@@ -152,7 +155,7 @@ class QueryProcessor():
     if cache is not None:
       past_kv_cache = DynamicCache.from_legacy_cache(cache)
     else:
-      past_kv_cache = DynamicCache()
+      past_kv_cache = None
     token = self.tokenizer(input, return_tensors="pt").to("cuda")
     with torch.no_grad():
       self.model.generate(
