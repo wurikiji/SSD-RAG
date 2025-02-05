@@ -126,7 +126,7 @@ class QueryProcessor():
     load past kv cache from the disk
     '''
     cache_file = os.path.join(self.cache_dir, f"{doc_id}.pt")
-    cache = torch.load(cache_file)
+    cache = torch.load(cache_file, map_location="cuda:0", weights_only=True)
     return cache
   
   def concat_caches(self, caches):
