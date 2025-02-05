@@ -51,6 +51,9 @@ class QueryProcessor():
   def process_query(self):
     with open(self.query_file) as f:
       lines = f.readlines()
+
+      elapsed = 0.0
+      cache_elapsed = 0.0
       for line in lines:
           query = parse_json_query(line)
           top_k_docs = self.find_top_k_docs(query)
@@ -63,7 +66,9 @@ class QueryProcessor():
             caches = self.load_all_caches(top_k_docs)
             concatenated = self.concat_caches(caches)
             cache_load_end = time.perf_counter()
-            print(f"{cache_load_end - cache_load_start} seconds")
+            cache_interval = cache_load_end - cache_load_start
+            cache_elapsed += cache_interval
+            print(f"cache load {cache_interval} seconds")
             self.generate_first_token(
               input, 
               cache = concatenated
@@ -72,11 +77,11 @@ class QueryProcessor():
             self.generate_first_token(input)
           
           end = time.perf_counter()
-
-          print(f"{end - start} seconds")
-          
-          break
-          
+          interval = end - start
+          print(f"{interval} seconds")
+          elapsed += interval
+      print(f"Avg elapsed time: {elapsed / len(lines)}")
+      print(f"Avg cache load: {cache_elapsed / len(lines)}")
   
   def find_top_k_docs(self, query: str):
     '''
@@ -126,6 +131,8 @@ class QueryProcessor():
     '''
     concatenate the cache 
     '''
+    if len(caches) == 0:
+      return None
     print(f"Concat {len(caches)} caches")
     num_layers = len(caches[0])
     print(f"Num hidden layers: {num_layers}")
