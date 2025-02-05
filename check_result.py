@@ -107,7 +107,7 @@ class QueryProcessor():
     for doc in docs:
       input += doc.text
     
-    input += f"\n\nQuestion: {query}"
+    input += f"\n\nQuestion: {query}\nAnswer: "
     return input
 
 
@@ -156,12 +156,19 @@ class QueryProcessor():
       past_kv_cache = None
     token = self.tokenizer(input, return_tensors="pt").to("cuda")
     with torch.no_grad():
-      self.model.generate(
+      output = self.model.generate(
         **token, 
         use_cache=True, 
         past_key_values = past_kv_cache,
-        max_new_tokens = 1,
+        max_new_tokens=100,
+        temperature=0.01
       )
+      input_length = token["input_ids"].shape[1]
+      output_string = self.tokenizer.decode(output[0][input_length:], skip_special_tokens=True)
+      print(f"==========INPUT========", flush=True)
+      print(input, flush=True)
+      print(f"==========ANSWER=========", flush=True)
+      print(output_string, flush=True)
 
 def main(
     query_file: str,
