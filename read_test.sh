@@ -12,5 +12,5 @@ conda activate base
 
 export PATH="/home/n0/gihwan/miniconda3/bin:$PATH"  # commented out by conda initialize
 
-torchrun --nproc_per_node 1 read_test.py --path=./data/cache/doc_1619.txt-0.pt
+torchrun --nproc_per_node 1 read_test.py 
 
