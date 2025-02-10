@@ -14,9 +14,12 @@ def main():
         while chunk := f.read(1024 * 1024):
             buffer.write(chunk)
     buffer.seek(0)
+    load_st = time.perf_counter()
     loaded = torch.load(buffer, weights_only=True, map_location="cuda:0")
+    load_end = time.perf_counter()
     buf_end = time.perf_counter()
     print(f"With Buffer {buf_end - buf_st}", flush=True)
+    print(f"  Load: {load_end - load_st}")
 
     direct_st = time.perf_counter()
     loaded2 = torch.load('data/cache/doc_1620.txt-0.pt', weights_only=True, map_location="cuda:0")
@@ -31,9 +34,12 @@ def main():
         # BytesIO 객체에 전체 데이터를 담습니다.
         buffer = io.BytesIO(data)
         # torch.load 를 호출할 때는 적절한 encoding 인자를 사용 (예: 'latin1')
+        load_st = time.perf_counter()
         loaded3 = torch.load(buffer, weights_only=True, map_location="cuda:0")
+        load_end = time.perf_counter()
     mmap_end = time.perf_counter()
     print(f"With mmap {mmap_end - mmap_st}")
+    print(f"  Load: {load_end - load_st}")
 
     os_st = time.perf_counter()
     buffer = io.BytesIO()
@@ -47,9 +53,12 @@ def main():
     finally: 
         os.close(fd)
     buffer.seek(0)
+    load_st = time.perf_counter()
     loaded4 = torch.load(buffer, weights_only=True, map_location="cuda:0")
+    load_end = time.perf_counter()
     os_end = time.perf_counter()
     print(f"With OS READ {os_end - os_st}")
+    print(f"  Load: {load_end - load_st}")
 
 
 if __name__ == "__main__":
