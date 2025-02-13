@@ -4,6 +4,7 @@ import os
 import chromadb
 import torch
 import json
+from tqdm import tqdm
 from typing import List
 from transformers import LlamaForCausalLM, AutoTokenizer, DynamicCache, AutoModelForCausalLM
 
@@ -44,7 +45,6 @@ class QueryProcessor():
       model_name, 
       torch_dtype=torch.float16,
       device_map="auto",
-      use_flash_attention_2=True,
     )
     print("Model loaded", flush=True)
 
@@ -54,7 +54,7 @@ class QueryProcessor():
 
       elapsed = 0.0
       cache_elapsed = 0.0
-      for line in lines:
+      for line in tqdm(lines):
           query = parse_json_query(line)
           top_k_docs = self.find_top_k_docs(query)
 
@@ -160,7 +160,7 @@ class QueryProcessor():
         **token, 
         use_cache=True, 
         past_key_values = past_kv_cache,
-        max_new_tokens=100,
+        max_new_tokens=50,
         temperature=0.01
       )
       input_length = token["input_ids"].shape[1]
