@@ -4,6 +4,7 @@ import os
 import chromadb
 import torch
 import json
+from tqdm import tqdm
 from typing import List
 from transformers import LlamaForCausalLM, AutoTokenizer, DynamicCache, AutoModelForCausalLM
 
@@ -53,7 +54,7 @@ class QueryProcessor():
 
       elapsed = 0.0
       cache_elapsed = 0.0
-      for line in lines:
+      for line in tqdm(lines):
           query = parse_json_query(line)
           top_k_docs = self.find_top_k_docs(query)
 
@@ -125,7 +126,7 @@ class QueryProcessor():
     load past kv cache from the disk
     '''
     cache_file = os.path.join(self.cache_dir, f"{doc_id}.pt")
-    cache = torch.load(cache_file, map_location="cuda:0", weights_only=True)
+    cache = torch.load(cache_file, weights_only=True)
     return cache
   
   def concat_caches(self, caches):
