@@ -2,6 +2,7 @@ import fire
 import os
 import chromadb
 import torch
+from tqdm import tqdm
 from typing import List
 from transformers import LlamaForCausalLM, AutoTokenizer, DynamicCache, AutoModelForCausalLM
 
@@ -40,12 +41,11 @@ class DocumentPreprocessor():
       model_name, 
       torch_dtype=torch.float16,
       device_map="auto",
-      use_flash_attention_2=True,
     )
     print("Model loaded")
 
   def process_documents(self):
-    for filename in os.listdir(self.docs_dir):
+    for filename in tqdm(os.listdir(self.docs_dir)):
       chunks = self.split_document(filename)
       self.save_to_vectordb(chunks)
       self.save_kv_cache(chunks)

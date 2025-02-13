@@ -44,7 +44,6 @@ class QueryProcessor():
       model_name, 
       torch_dtype=torch.float16,
       device_map="auto",
-      use_flash_attention_2=True,
     )
     print("Model loaded", flush=True)
 
