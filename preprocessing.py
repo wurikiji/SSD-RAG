@@ -85,10 +85,6 @@ class DocumentPreprocessor():
         past_kv_cache = DynamicCache.from_legacy_cache(loaded)
         self.model(**input, use_cache = True, past_kv_cache = past_kv_cache)
       '''
-  
-  def test_vectordb(self, input: str):
-    outputs = self.vectordb.query(query_texts=[input])
-    print(outputs)
 
 def main(
     docs_dir: str,
@@ -106,7 +102,6 @@ def main(
     )
 
     preprocessor.process_documents()
-    preprocessor.test_vectordb("Hello")
 
 
 
